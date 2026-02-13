@@ -15,7 +15,7 @@ if not MUSIC_DIR:
 
 os.makedirs(MUSIC_DIR, exist_ok=True)
 
-SSE = "ytjob:sse"
+NOTIFICATIONS = "ytjob:notifications"
 QUEUE = "ytjob:queue"
 PROCESSING = "ytjob:processing"
 
@@ -30,17 +30,21 @@ insert_music_qry = "INSERT INTO music (author, name, path, time, report) VALUES 
 def main():
     if not r.ping():
         raise Exception("Failed to connect to Redis")
-
+    
+    r.publish(NOTIFICATIONS, "Worker started")
     while True:
         job_str = r.brpoplpush(QUEUE, PROCESSING, timeout=0)
         job = Job.from_str(job_str)
         if not job:
+            r.publish(NOTIFICATIONS, "Invalid job, removing from processing queue")
             # Invalid job, remove from processing queue
             r.lrem(PROCESSING, 1, job_str)
             continue
-
+        
+        r.publish(NOTIFICATIONS, f"Downloading {job.author} - {job.title}")
         job.download()
         r.lrem(PROCESSING, 1, job_str)
+        r.publish(NOTIFICATIONS, f"Downloaded {job.author} - {job.title}")
 
 class Job:
     @staticmethod
