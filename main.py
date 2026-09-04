@@ -5,6 +5,7 @@ import os
 from yt_dlp import YoutubeDL
 from dotenv import load_dotenv
 from psycopg import connect
+from datetime import datetime
 
 load_dotenv()
 
@@ -32,9 +33,9 @@ PROCESSING = "ytjob:processing"
 r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 
 def notify(message):
-    r.publish(NOTIFICATIONS, message)
-    print(message)
-
+    date = datetime.now().isoformat()
+    r.publish(NOTIFICATIONS, json.dumps({"date": date, "message": message}))
+    print(date, json.dumps(message))
 
 conn = connect(
     host=PG_HOST,
@@ -62,6 +63,15 @@ def main():
         job.download()
         r.lrem(PROCESSING, 1, job_str)
         notify(f"Downloaded {job.artist} - {job.title}")
+
+def progress_hook(artist, title):
+    def progress(d):
+        notify({
+            "artist": artist,
+            "title": title,
+            "progress": d,
+        })
+    return progress
 
 class Job:
     @staticmethod
@@ -96,9 +106,10 @@ class Job:
             "format": "bestaudio/best",
             "noplaylist": True,
             "quiet": True,
-            "extractor-args": {
+            "progress_hooks": [progress_hook(artist=self.artist, title=self.title)],
+            "extractor_args": {
                 "youtube": {
-                    "player_client": "android"
+                    "player_client": ["android", "ios"]
                 }
             },
             "postprocessors": [{
@@ -117,7 +128,11 @@ class Job:
             try:
                 ydl.download([self.url])
             except Exception as e:
-                notify(f"Error downloading {self.artist} - {self.title}: {e}")
+                notify({
+                    "error": str(e),
+                    "artist": self.artist,
+                    "title": self.title,
+                })
     
     def __insert_into_database(self):
         cur = conn.cursor()
@@ -129,6 +144,13 @@ class Job:
         self.__create_artist_folder()
         self.__download_mp3()
         self.__insert_into_database()
+        notify({
+            "artist": self.artist,
+            "title": self.title,
+            "duration": self.duration,
+            "path": self.__rel_path(),
+            "notes": "",
+        })
 
 
 
