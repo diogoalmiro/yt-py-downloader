@@ -3,6 +3,9 @@ import sys
 import json
 import os
 from yt_dlp import YoutubeDL
+import load_dotenv from dotenv
+
+load_dotenv()
 
 REDIS_HOST = os.environ.get("REDIS_HOST", "localhost")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
@@ -22,9 +25,9 @@ def main():
         info = ydl.extract_info(url, download=False)
         video_title = info.get('title')
         default_author, default_title = video_title.split(" - ") if " - " in video_title else (video_title, "")
-        author = input(f"Author [{default_author}]: ") or default_author
+        artist = input(f"Artist [{default_artist}]: ") or default_artist
         title = input(f"Title [{default_title}]: ") or default_title
-        res = r.lpush(QUEUE, json.dumps({"url": url, "author": author, "title": title}))
+        res = r.lpush(QUEUE, json.dumps({"url": url, "artist": artist, "title": title}))
         print(f"Added to queue: {res}")
 
 if __name__ == "__main__":
