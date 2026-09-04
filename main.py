@@ -96,6 +96,11 @@ class Job:
             "format": "bestaudio/best",
             "noplaylist": True,
             "quiet": True,
+            "extractor-args": {
+                "youtube": {
+                    "player_client": "android"
+                }
+            },
             "postprocessors": [{
                 "key": "FFmpegExtractAudio",
                 "preferredcodec": "mp3",
