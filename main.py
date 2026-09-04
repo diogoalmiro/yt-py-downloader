@@ -116,7 +116,7 @@ class Job:
     
     def __insert_into_database(self):
         cur = conn.cursor()
-        cur.execute("INSERT INTO music (artist, title, duration, path, notes) VALUES (%s, %s, %s, %s, '')", (self.artist, self.title, self.duration, self.__rel_path()))
+        cur.execute("INSERT INTO music (artist, title, duration, path, notes) VALUES (%s, %s, %s, %s, '') ON CONFLICT (path) DO UPDATE SET duration = %s, artist = %s, title = %s", (self.artist, self.title, self.duration, self.__rel_path(), self.duration, self.artist, self.title))
         cur.close()
         conn.commit()
     
