@@ -4,18 +4,26 @@ import sqlite3
 import os
 from yt_dlp import YoutubeDL
 from dotenv import load_dotenv
+from psycopg import connect
 
 load_dotenv()
 
 REDIS_HOST = os.environ.get("REDIS_HOST", "127.0.0.1")
 REDIS_PORT = os.environ.get("REDIS_PORT", 6379)
 REDIS_DB = os.environ.get("REDIS_DB", 0)
-MUSIC_DIR = os.environ.get("MUSIC_DIR")
 
-if not MUSIC_DIR:
-    raise Exception("MUSIC_DIR is not set")
+PG_HOST = os.environ.get("PG_HOST", "127.0.0.1")
+PG_PORT = os.environ.get("PG_PORT", 5432)
+PG_DATABASE = os.environ.get("PG_DATABASE", "music.diogoalmiro.com")
+PG_USER = os.environ.get("PG_USER", "pi5")
+PG_PASSWORD = os.environ.get("PG_PASSWORD")
 
-os.makedirs(MUSIC_DIR, exist_ok=True)
+MUSIC_FOLDER = os.environ.get("MUSIC_FOLDER")
+
+if not MUSIC_FOLDER:
+    raise Exception("MUSIC_FOLDER is not set")
+
+os.makedirs(MUSIC_FOLDER, exist_ok=True)
 
 NOTIFICATIONS = "ytjob:notifications"
 QUEUE = "ytjob:queue"
@@ -26,6 +34,15 @@ r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT, db=REDIS_DB)
 def notify(message):
     r.publish(NOTIFICATIONS, message)
     print(message)
+
+
+conn = connect(
+    host=PG_HOST,
+    port=PG_PORT,
+    dbname=PG_DATABASE,
+    user=PG_USER,
+    password=PG_PASSWORD
+)
 
 def main():
     if not r.ping():
@@ -63,15 +80,15 @@ class Job:
         self.duration = None
     
     def __create_artist_folder(self):
-        artist_folder = os.path.join(MUSIC_DIR, self.artist)
+        artist_folder = os.path.join(MUSIC_FOLDER, self.artist)
         os.makedirs(artist_folder, exist_ok=True)
         return artist_folder
     
     def __final_path(self):
-        return os.path.join(MUSIC_DIR, self.artist, self.title + ".%(ext)s")
+        return os.path.join(MUSIC_FOLDER, self.artist, self.title + ".%(ext)s")
     
     def __rel_path(self):
-        return os.path.join("/Musica/", self.artist, self.title + ".mp3")
+        return os.path.join(self.artist, self.title + ".mp3")
 
     def __download_mp3(self):
         ytdl_opts = {
@@ -97,10 +114,16 @@ class Job:
             except Exception as e:
                 notify(f"Error downloading {self.artist} - {self.title}: {e}")
     
+    def __insert_into_database(self):
+        cur = conn.cursor()
+        cur.execute("INSERT INTO music (artist, title, duration, path, notes) VALUES (%s, %s, %s, %s, '')", (self.artist, self.title, self.duration, self.__rel_path()))
+        cur.close()
+        conn.commit()
+    
     def download(self):
         self.__create_artist_folder()
         self.__download_mp3()
-
+        self.__insert_into_database()
 
 
 
