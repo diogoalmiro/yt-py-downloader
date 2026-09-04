@@ -54,22 +54,26 @@ def main():
         job_str = r.brpoplpush(QUEUE, PROCESSING, timeout=0)
         job = Job.from_str(job_str)
         if not job:
-            notify("Invalid job, removing from processing queue")
+            notify({
+                "job_str": job_str,
+                "error": "Invalid job, removing from processing queue",
+            })
             # Invalid job, remove from processing queue
             r.lrem(PROCESSING, 1, job_str)
             continue
-        
-        notify(f"Downloading {job.artist} - {job.title}")
         job.download()
         r.lrem(PROCESSING, 1, job_str)
-        notify(f"Downloaded {job.artist} - {job.title}")
 
 def progress_hook(artist, title):
     def progress(d):
         notify({
             "artist": artist,
             "title": title,
-            "progress": d,
+            "progress": {
+                "downloaded_bytes": d.get('downloaded_bytes', 0),
+                "total_bytes": d.get('total_bytes', 0),
+                "elapsed_seconds": d.get('elapsed', 0),
+            },
         })
     return progress
 
