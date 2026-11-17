@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 from psycopg import connect
 from datetime import datetime
 import tempfile
+import threading
 
 load_dotenv()
 
@@ -138,6 +139,16 @@ class TemporaryJob(Job):
         notify({
             "name": name,
             "done": True,
+        })
+        # delete file after 15 minutes
+        threading.Timer(15*60, self.__delete_file).start()
+    
+    def __delete_file(self):
+        name = os.path.splitext(os.path.basename(self.filename))[0]
+        os.remove(os.path.join(TMP_FOLDER, name + ".mp3"))
+        notify({
+            "name": name,
+            "deleted": True,
         })
 
 class PersistentJob(Job):
