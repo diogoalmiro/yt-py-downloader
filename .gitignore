@@ -1,5 +1,6 @@
 env/
 .vscode
 downloads/
+tmp_downloads/
 musics.db
 .env
